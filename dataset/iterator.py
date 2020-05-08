@@ -247,6 +247,8 @@ class DetIter(mx.io.DataIter):
             img = mx.img.imdecode(img_content)
             gt = self._imdb.label_from_index(index).copy() if self.is_train else None
             data, label = self._data_augmentation(img, gt)
+            # editted hsbk
+            # data, label = img, gt
             batch_data[i] = data
             if self.is_train:
                 batch_label.append(label)
