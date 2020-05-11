@@ -38,7 +38,7 @@ def parse_args():
                         help='which network to use')
     # parser.add_argument('--batch-size', dest='batch_size', type=int, default=32,
     #                     help='training batch size')
-    parser.add_argument('--batch-size', dest='batch_size', type=int, default=24,
+    parser.add_argument('--batch-size', dest='batch_size', type=int, default=32,
                         help='training batch size')
     parser.add_argument('--resume', dest='resume', type=int, default=-1,
                         help='resume training from epoch n')
@@ -57,20 +57,20 @@ def parse_args():
     # parser.add_argument('--end-epoch', dest='end_epoch', help='end epoch of training',
     #                     default=240, type=int)
     parser.add_argument('--end-epoch', dest='end_epoch', help='end epoch of training',
-                        default=20, type=int)
+                        default=10, type=int)
     # parser.add_argument('--frequent', dest='frequent', help='frequency of logging',
     #                     default=20, type=int)
     parser.add_argument('--frequent', dest='frequent', help='frequency of logging',
                         default=40, type=int)
-    # parser.add_argument('--data-shape', dest='data_shape', type=int, default=300,
-    #                     help='set image shape')
-    parser.add_argument('--data-shape', dest='data_shape', type=int, default=512,
+    parser.add_argument('--data-shape', dest='data_shape', type=int, default=300,
                         help='set image shape')
+    # parser.add_argument('--data-shape', dest='data_shape', type=int, default=512,
+    #                     help='set image shape')
     parser.add_argument('--label-width', dest='label_width', type=int, default=350,
                         help='force padding label width to sync across train and validation')
     # parser.add_argument('--lr', dest='learning_rate', type=float, default=0.002,
     #                     help='learning rate')
-    parser.add_argument('--lr', dest='learning_rate', type=float, default=0.001,
+    parser.add_argument('--lr', dest='learning_rate', type=float, default=1e-3,
                         help='learning rate')
     parser.add_argument('--momentum', dest='momentum', type=float, default=0.9,
                         help='momentum')

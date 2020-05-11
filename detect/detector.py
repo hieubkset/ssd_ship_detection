@@ -24,6 +24,7 @@ import logging
 import cv2
 import os
 from mxnet.io import DataBatch, DataDesc
+import xml.etree.ElementTree as ET
 
 
 class Detector(object):
@@ -142,10 +143,10 @@ class Detector(object):
         test_iter = DetIter(test_db, 1, self.data_shape, self.mean_pixels,
                             is_train=False)
         return self.detect_iter(test_iter, show_timer)
-
-    def visualize_detection(self, dst_save, img, dets, classes=[], thresh=0.6):
+    
+    def save_detection(self, save_path, img, boxes, dets, thresh=0.6):
         """
-        visualize detections in one image
+        save detection images
 
         Parameters:
         ----------
@@ -160,35 +161,79 @@ class Detector(object):
             score threshold
         """
         import matplotlib.pyplot as plt
-        import random
+        plt.imshow(img)
+        plt.axis('off')
         height = img.shape[0]
         width = img.shape[1]
-        colors = dict()
+
         for det in dets:
-            (klass, score, x0, y0, x1, y1) = det
+            klass, score, x0, y0, x1, y1 = det
             if score < thresh:
                 continue
-            cls_id = int(klass)
-            if cls_id not in colors:
-                colors[cls_id] = (random.random(), random.random(), random.random())
+                
             xmin = int(x0 * width)
             ymin = int(y0 * height)
             xmax = int(x1 * width)
             ymax = int(y1 * height)
-            img = cv2.rectangle(img, (xmin, ymin), (xmax, ymax), (0, 0, 255), 1)
-            class_name = str(cls_id)
-            if classes and len(classes) > cls_id:
-                class_name = classes[cls_id]
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            img = cv2.putText(img, '{:s} {:.3f}'.format(class_name, score), (xmin, ymin - 2), font, 0.3, (255, 255, 255), 1,
-                        cv2.LINE_AA)
 
-            # plt.gca().text(xmin, ymin - 2,
-            #                '{:s} {:.3f}'.format(class_name, score),
-            #                bbox=dict(facecolor=colors[cls_id], alpha=0.5),
-            #                fontsize=12, color='white')
-        # plt.show()
-        cv2.imwrite(dst_save, img)
+            rect = plt.Rectangle((xmin, ymin), xmax - xmin,
+                                 ymax - ymin, fill=False,
+                                 edgecolor='red',
+                                 linewidth=3.5)
+            plt.gca().add_patch(rect)
+            plt.gca().text(xmin, ymin - 2, '{:.3f}'.format(score),
+                           bbox=dict(facecolor='red', alpha=0.5),
+                           fontsize=12, color='white')
+        for box in boxes:
+            xmin, ymin, xmax, ymax = box
+            rect = plt.Rectangle((xmin, ymin), xmax - xmin,
+                                 ymax - ymin, fill=False,
+                                 edgecolor='green',
+                                 linewidth=3.5)
+            plt.gca().add_patch(rect)
+
+        plt.savefig(save_path, bbox_inches='tight')
+        plt.close()
+
+    def compute_metrics(self, img, boxes, dets, score_thresh, iou_thresh):
+        """
+                save detection images
+
+                Parameters:
+                ----------
+                img : numpy.array
+                    image, in bgr format
+                dets : numpy.array
+                    ssd detections, numpy.array([[id, score, x1, y1, x2, y2]...])
+                    each row is one object
+                thresh : float
+                    score threshold
+                """
+        height = img.shape[0]
+        width = img.shape[1]
+        false_positive = 0
+        true_positive = 0
+        pred_positive = 0
+        positive = len(boxes)
+        for det in dets:
+            klass, score, x0, y0, x1, y1 = det
+            if score < score_thresh:
+                continue
+
+            xmin = int(x0 * width)
+            ymin = int(y0 * height)
+            xmax = int(x1 * width)
+            ymax = int(y1 * height)
+            pred_box = (xmin, ymin, xmax, ymax)
+
+            pred_positive += 1
+            iou = max([self.compute_iou(box, pred_box) for box in boxes])
+            if iou >= iou_thresh:
+                true_positive += 1
+            else:
+                false_positive += 1
+
+        return false_positive, true_positive, pred_positive, positive
 
     @staticmethod
     def filter_positive_detections(detections):
@@ -211,11 +256,40 @@ class Detector(object):
         logging.info("%d positive detections", len(result))
         return detections_per_image
 
-    def detect_and_visualize(self, im_list, root_dir=None, extension=None,
-                             classes=[], thresh=0.6, show_timer=False):
+    @staticmethod
+    def get_boxes(label_file):
+        tree = ET.parse(label_file)
+        root = tree.getroot()
+        boxes = []
+        for obj in root.iter('object'):
+            xml_box = obj.find('bndbox')
+            xmin = int(xml_box.find('xmin').text)
+            ymin = int(xml_box.find('ymin').text)
+            xmax = int(xml_box.find('xmax').text)
+            ymax = int(xml_box.find('ymax').text)
+            box = (xmin, ymin, xmax, ymax)
+            boxes.append(box)
+        return boxes
+
+    @staticmethod
+    def compute_iou(boxA, boxB):
+        # determine the (x, y)-coordinates of the intersection rectangle
+        xA = max(boxA[0], boxB[0])
+        yA = max(boxA[1], boxB[1])
+        xB = min(boxA[2], boxB[2])
+        yB = min(boxA[3], boxB[3])
+        interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1)
+        boxAArea = (boxA[2] - boxA[0] + 1) * (boxA[3] - boxA[1] + 1)
+        boxBArea = (boxB[2] - boxB[0] + 1) * (boxB[3] - boxB[1] + 1)
+        iou = interArea / float(boxAArea + boxBArea - interArea)
+
+        return iou
+
+    def detect(self, im_list, root_dir=None, extension=None,
+               classes=[], thresh=0.6, iou=0.75, show_timer=False, save=False):
         """
         wrapper for im_detect and visualize_detection
-
+`
         Parameters:
         ----------
         im_list : list of str or str
@@ -230,13 +304,31 @@ class Detector(object):
         ----------
 
         """
-        dets = self.im_detect(im_list, root_dir, extension, show_timer=show_timer)
+        dets = self.im_detect(im_list, os.path.join(root_dir, 'JPEGImages'), extension, show_timer=show_timer)
         if not isinstance(im_list, list):
             im_list = [im_list]
         assert len(dets) == len(im_list)
+
+        if save and not os.path.exists('results'):
+            os.makedirs('results')
+
+        false_positive, true_positive, pred_positive, positive = 0, 0, 0, 0
         for k, det in enumerate(dets):
-            im_name = os.path.basename(im_list[k])[:-4] + '.png'
-            dst_save = os.path.join('results', im_name)
-            img = cv2.imread(im_list[k])
+            label_file = os.path.join(root_dir, 'Annotations', im_list[k][:-4] + '.xml')
+            boxes = self.get_boxes(label_file)
+            img = cv2.imread(os.path.join(root_dir, 'JPEGImages', im_list[k]))
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            self.visualize_detection(dst_save, img, det, classes, thresh)
+            if save:
+                save_path = os.path.join('results', os.path.basename(im_list[k])[:-4] + '.png')
+                self.save_detection(save_path, img, boxes, det, thresh)
+            metrics = self.compute_metrics(img, boxes, det, thresh, iou)
+            false_positive += metrics[0]
+            true_positive += metrics[1]
+            pred_positive += metrics[2]
+            positive += metrics[3]
+
+        recall = true_positive / positive
+        precision = true_positive / pred_positive
+
+        print('recall = %.2f' % recall)
+        print('precision = %.2f' % precision)

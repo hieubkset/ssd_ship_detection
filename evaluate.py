@@ -24,8 +24,10 @@ from evaluate.evaluate_net import evaluate_net
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Evaluate a network')
+    # parser.add_argument('--rec-path', dest='rec_path', help='which record file to use',
+    #                     default=os.path.join(os.getcwd(), 'data', 'val.rec'), type=str)
     parser.add_argument('--rec-path', dest='rec_path', help='which record file to use',
-                        default=os.path.join(os.getcwd(), 'data', 'val.rec'), type=str)
+                        default=os.path.join(os.getcwd(), 'data', 'test.rec'), type=str)
     parser.add_argument('--list-path', dest='list_path', help='which list file to use',
                         default="", type=str)
     parser.add_argument('--network', dest='network', type=str, default='vgg16_reduced',
@@ -56,7 +58,7 @@ def parse_args():
                         action='store_true')
     # parser.add_argument('--data-shape', dest='data_shape', type=int, default=300,
     #                     help='set image shape')
-    parser.add_argument('--data-shape', dest='data_shape', type=int, default=512,
+    parser.add_argument('--data-shape', dest='data_shape', type=int, default=300,
                         help='set image shape')
     parser.add_argument('--mean-r', dest='mean_r', type=float, default=123,
                         help='red mean value')
@@ -85,7 +87,7 @@ if __name__ == '__main__':
     if args.cpu:
         ctx = mx.cpu()
     else:
-        ctx = [mx.gpu(int(i)) for i in args.gpu_id.split(',')]
+        ctx = mx.gpu(0)
     # parse # classes and class_names if applicable
     num_class = args.num_class
     if len(args.class_names) > 0:
@@ -106,6 +108,7 @@ if __name__ == '__main__':
         prefix = args.prefix + args.network
     else:
         prefix = args.prefix
+
     evaluate_net(network, args.rec_path, num_class, args.num_batch,
                  (args.mean_r, args.mean_g, args.mean_b), args.data_shape,
                  prefix, args.epoch, ctx, batch_size=args.batch_size,

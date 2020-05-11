@@ -1,20 +1,3 @@
-<!--- Licensed to the Apache Software Foundation (ASF) under one -->
-<!--- or more contributor license agreements.  See the NOTICE file -->
-<!--- distributed with this work for additional information -->
-<!--- regarding copyright ownership.  The ASF licenses this file -->
-<!--- to you under the Apache License, Version 2.0 (the -->
-<!--- "License"); you may not use this file except in compliance -->
-<!--- with the License.  You may obtain a copy of the License at -->
-
-<!---   http://www.apache.org/licenses/LICENSE-2.0 -->
-
-<!--- Unless required by applicable law or agreed to in writing, -->
-<!--- software distributed under the License is distributed on an -->
-<!--- "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY -->
-<!--- KIND, either express or implied.  See the License for the -->
-<!--- specific language governing permissions and limitations -->
-<!--- under the License. -->
-
 # SSD: Single Shot MultiBox Object Detector
 
 SSD is an unified framework for object detection with a single network.
@@ -160,8 +143,9 @@ Chinh sua cho ship dataset:
 # cd /path/to/incubator-mxnet/example/ssd
 bash tools/prepare_pascal.sh
 # or if you are using windows
-python tools/prepare_dataset.py --dataset pascal --year ship --set trainval --target ./data/train.lst
-python tools/prepare_dataset.py --dataset pascal --year ship --set test --target ./data/val.lst --no-shuffle
+python tools/prepare_dataset.py --dataset pascal --year ship --set train --target ./data/train.lst
+python tools/prepare_dataset.py --dataset pascal --year ship --set val --target ./data/val.lst --no-shuffle
+python tools/prepare_dataset.py --dataset pascal --year ship --set test --target ./data/test.lst --no-shuffle
 ```
 
 * Start training:

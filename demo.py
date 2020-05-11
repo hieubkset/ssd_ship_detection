@@ -69,10 +69,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Single-shot detection network demo')
     parser.add_argument('--network', dest='network', type=str, default='vgg16_reduced',
                         help='which network to use')
-    parser.add_argument('--folder', dest='folder', type=str, default='./data/VOCdevkit/VOCship/JPEGImages',
+    parser.add_argument('--dir', dest='dir', type=str, default='data/VOCdevkit/VOC10m',
                         help='run demo with images in this folder')
-    parser.add_argument('--dir', dest='dir', nargs='?',
-                        help='demo image directory, optional', type=str)
     parser.add_argument('--ext', dest='extension', help='image extension, optional',
                         type=str, nargs='?')
     parser.add_argument('--epoch', dest='epoch', help='epoch of trained model',
@@ -86,9 +84,7 @@ def parse_args():
                         action='store_true', default=False)
     parser.add_argument('--gpu', dest='gpu_id', type=int, default=0,
                         help='GPU device id to detect with')
-    # parser.add_argument('--data-shape', dest='data_shape', type=str, default='300',
-    #                     help='set image shape')
-    parser.add_argument('--data-shape', dest='data_shape', type=str, default='512',
+    parser.add_argument('--data-shape', dest='data_shape', type=str, default='300',
                         help='set image shape')
     parser.add_argument('--mean-r', dest='mean_r', type=float, default=123,
                         help='red mean value')
@@ -96,9 +92,11 @@ def parse_args():
                         help='green mean value')
     parser.add_argument('--mean-b', dest='mean_b', type=float, default=104,
                         help='blue mean value')
-    parser.add_argument('--thresh', dest='thresh', type=float, default=0.6,
+    parser.add_argument('--thresh', dest='thresh', type=float, default=0.4,
                         help='object visualize score threshold, default 0.6')
-    parser.add_argument('--nms', dest='nms_thresh', type=float, default=0.5,
+    parser.add_argument('--iou', dest='iou', type=float, default=0.5,
+                        help='iou threshold, default 0.6')
+    parser.add_argument('--nms', dest='nms_thresh', type=float, default=0.3,
                         help='non-maximum suppression threshold, default 0.5')
     parser.add_argument('--no-force', dest='force_nms', action='store_false',
                         help='dont force non-maximum suppression on different class')
@@ -109,10 +107,9 @@ def parse_args():
     parser.add_argument('--class-names', dest='class_names', type=str,
                         default='ship',
                         help='string of comma separated names, or text filename')
-    # parser.add_argument('--camera', action='store_true',
-    #                     help="use camera for image capturing")
     parser.add_argument('--frame-resize', type=str, default=None,
                         help="resize camera frame to x,y pixels or a float scaling factor")
+    parser.add_argument('--save', dest='save', action='store_true', help='Save detection images')
     args = parser.parse_args()
     return args
 
@@ -170,47 +167,12 @@ def draw_detection(frame, det, class_names):
 def network_path(prefix, network, data_shape):
     return "{}{}_{}".format(prefix, network, data_shape)
 
-# def run_camera(args,ctx):
-#     assert args.batch_size == 1, "only batch size of 1 is supported"
-#     logging.info("Detection threshold is {}".format(args.thresh))
-#     iter = CameraIterator(frame_resize=parse_frame_resize(args.frame_resize))
-#     class_names = parse_class_names(args.class_names)
-#     mean_pixels = (args.mean_r, args.mean_g, args.mean_b)
-#     data_shape = int(args.data_shape)
-#     batch_size = int(args.batch_size)
-#     detector = Detector(
-#         get_symbol(args.network, data_shape, num_classes=len(class_names)),
-#         network_path(args.prefix, args.network, data_shape),
-#         args.epoch,
-#         data_shape,
-#         mean_pixels,
-#         batch_size,
-#         ctx
-#     )
-#     for frame in iter:
-#         logging.info("Frame info: shape %s type %s", frame.shape, frame.dtype)
-#         logging.info("Generating batch")
-#         data_batch = detector.create_batch(frame)
-#         logging.info("Detecting objects")
-#         detections_batch = detector.detect_batch(data_batch)
-#         #detections = [mx.nd.array((1,1,0.2,0.2,0.4,0.4))]
-#         detections = detections_batch[0]
-#         logging.info("%d detections", len(detections))
-#         for det in detections:
-#             obj = det.asnumpy()
-#             (klass, score, x0, y0, x1, y1) = obj
-#             if score > args.thresh:
-#                 draw_detection(frame, obj, class_names)
-#         cv2.imshow('frame', frame)
-
-def run_images(args,ctx):
-    # parse image list
-    # image_list = [i.strip() for i in args.images.split(',')]
-    image_list = os.listdir(args.folder)
-    image_list = [os.path.join(args.folder, image) for image in image_list]
-    image_list = image_list[:20]
-    assert len(image_list) > 0, "No valid image specified to detect"
-
+def run(args, ctx):
+    with open(os.path.join(args.dir, 'ImageSets/Main/test.txt'), 'r') as f:
+        images_name = f.readlines()
+    images_name = [image.strip() + '.jpg' for image in images_name]
+    # images_name = images_name[:100]
+    assert len(images_name) > 0, "No valid image specified to detect"
     network = None if args.deploy_net else args.network
     class_names = parse_class_names(args.class_names)
     data_shape = parse_data_shape(args.data_shape)
@@ -223,8 +185,8 @@ def run_images(args,ctx):
                             (args.mean_r, args.mean_g, args.mean_b),
                             ctx, len(class_names), args.nms_thresh, args.force_nms)
     # run detection
-    detector.detect_and_visualize(image_list, args.dir, args.extension,
-                                  class_names, args.thresh, args.show_timer)
+    detector.detect(images_name, args.dir, args.extension,
+                    class_names, args.thresh, args.iou, args.show_timer, args.save)
 
 def main():
     logging.getLogger().setLevel(logging.INFO)
@@ -234,10 +196,7 @@ def main():
         ctx = mx.cpu()
     else:
         ctx = mx.gpu(0)
-    # if args.camera:
-    #     run_camera(args, ctx)
-    # else:
-    run_images(args, ctx)
+    run(args, ctx)
     return 0
 
 if __name__ == '__main__':
